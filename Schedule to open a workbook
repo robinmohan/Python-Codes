@@ -1,0 +1,29 @@
+import tkinter
+from tkinter import filedialog
+import os
+
+root = tkinter.Tk()
+root.withdraw() #use to hide tkinter window
+
+def search_for_file_path ():
+    currdir = os.getcwd()
+    tempdir = filedialog.askopenfilename()
+    if len(tempdir) > 0:
+        print ("You chose: %s" % tempdir)
+    return tempdir
+
+
+file_path_variable = search_for_file_path()
+
+import schedule
+import time
+import xlwings as xw
+
+def job():
+    xw.Book(file_path_variable)
+    
+schedule.every().day.at("21:04").do(job)
+
+while True:
+    schedule.run_pending()
+    time.sleep(1) # wait one minute
