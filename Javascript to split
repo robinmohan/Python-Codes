@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Excel Upload and Split</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        h1 {
+            color: green;
+        }
+
+        label {
+            font-weight: bold;
+        }
+
+        select, input[type="number"] {
+            margin-bottom: 10px;
+        }
+
+        #splitOptions {
+            display: none;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 4px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+    <script>
+        $(document).ready(function() {
+            var workbook;
+            var maxLineItems = 100; // Default value
+            
+            // Function to handle the file upload
+            function handleFile(e) {
+                var files = e.target.files;
+                var f = files[0];
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    var data = new Uint8Array(e.target.result);
+                    workbook = XLSX.read(data, {type: 'array'});
+                    var sheetName = workbook.SheetNames[0];
+                    var worksheet = workbook.Sheets[sheetName];
+                    var headers = [];
+                    for (var key in worksheet) {
+                        if (key[0] === '!') continue;
+                        if (key.slice(1) === '1') {
+                            headers.push(worksheet[key].v);
+                        }
+                    }
+                    var dropdown = document.getElementById('headerDropdown');
+                    dropdown.innerHTML = "";
+                    headers.forEach(function(header) {
+                        var option = document.createElement('option');
+                        option.text = header;
+                        dropdown.add(option);
+                    });
+                };
+                reader.readAsArrayBuffer(f);
+            }
+
+            // Function to split and export the data
+            function splitAndExportData() {
+                var selectedHeader = document.getElementById('headerDropdown').value;
+                var shouldSplit = document.getElementById('splitChoice').checked;
+
+                if (shouldSplit) {
+                    maxLineItems = parseInt(document.getElementById('maxLineItems').value);
+                }
+                
+                var sheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[sheetName];
+                var data = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                var headerRow = data[0];
+                var headerIndex = headerRow.indexOf(selectedHeader);
+                var exportedData = {};
+
+                for (var i = 1; i < data.length; i++) {
+                    var rowData = data[i];
+                    var value = rowData[headerIndex];
+                    if (!exportedData[value]) {
+                        exportedData[value] = [];
+                    }
+                    exportedData[value].push(rowData);
+                }
+
+                for (var value in exportedData) {
+                    var rows = exportedData[value];
+                    if (shouldSplit && rows.length > maxLineItems) {
+                        var splitCount = Math.ceil(rows.length / maxLineItems);
+                        for (var i = 0; i < splitCount; i++) {
+                            var start = i * maxLineItems;
+                            var end = start + maxLineItems;
+                            var splitRows = rows.slice(start, end);
+                            var ws = XLSX.utils.aoa_to_sheet([headerRow].concat(splitRows));
+                            var wb = XLSX.utils.book_new();
+                            XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+                            XLSX.writeFile(wb, selectedHeader + '_' + value + '_' + (i + 1) + '.xlsx');
+                        }
+                    } else {
+                        var ws = XLSX.utils.aoa_to_sheet([headerRow].concat(rows));
+                        var wb = XLSX.utils.book_new();
+                        XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+                        XLSX.writeFile(wb, selectedHeader + '_' + value + '.xlsx');
+                    }
+                }
+            }
+
+            document.getElementById('upload').addEventListener('change', handleFile, false);
+            document.getElementById('split').addEventListener('click', splitAndExportData, false);
+            document.getElementById('splitChoice').addEventListener('change', toggleSplitOptions, false);
+
+            function toggleSplitOptions() {
+                var splitOptions = document.getElementById('splitOptions');
+                splitOptions.style.display = document.getElementById('splitChoice').checked ? 'block' : 'none';
+            }
+        });
+    </script>
+</head>
+<body>
+    <h1>Data Splitter</h1>
+    <p>Created by robin.a.gupta</p>
+    <br>
+    <input type="file" id="upload" accept=".xls, .xlsx">
+    <br><br>
+    <label for="headerDropdown">Select a column header:</label>
+    <select id="headerDropdown"></select>
+    <br><br>
+    <label for="splitChoice">Split with line item count:</label>
+    <input type="checkbox" id="splitChoice">
+    <br><br>
+    <div id="splitOptions">
+        <label for="maxLineItems">Max Line Items per File:</label>
+        <input type="number" id="maxLineItems" min="1" value="100">
+        <br><br>
+    </div>
+    <button id="split">Split and Export</button>
+</body>
+</html>
